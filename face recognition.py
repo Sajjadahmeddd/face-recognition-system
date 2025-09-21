@@ -104,24 +104,7 @@ def save_local_attendance(student_name, time_detected):
     """Legacy function - now calls the tracking version"""
     save_local_attendance_with_tracking(student_name, time_detected)
 
-def setup_google_sheets():
-    """Set up Google Sheets connection and create/initialize the attendance sheet"""
-    try:
-        if not os.path.exists('credentials.json'):
-            print("📝 Google Sheets credentials not found. Using local storage.")
-            print("💡 To enable Google Sheets: Follow GOOGLE_SHEETS_SETUP.md")
-            return None
-            
-        # Load credentials and connect
-        creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
-        gc = gspread.authorize(creds)
-        print("✅ Google Sheets connected successfully!")
-        return gc
-        
-    except Exception as e:
-        print(f"⚠️ Google Sheets setup error: {e}")
-        print("📝 Falling back to local storage")
-        return None
+# Google Sheets functions removed - using local JSON storage only
 
 def initialize_google_sheet(gc):
     """Initialize the Google Sheet with student names and First Arrival/Latest Visit columns"""
