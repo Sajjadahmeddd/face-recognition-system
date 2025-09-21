@@ -69,8 +69,8 @@ class Face:
             print(f"Error loading image: {e}")
             return None
 
-def save_local_attendance(student_name, time_detected):
-    """Save attendance locally when Google Sheets is not available"""
+def save_local_attendance_with_tracking(student_name, time_detected):
+    """Save attendance locally with First Arrival and Latest Visit tracking"""
     try:
         # Load existing data
         if os.path.exists(LOCAL_ATTENDANCE_LOG):
@@ -79,11 +79,19 @@ def save_local_attendance(student_name, time_detected):
         else:
             data = {}
         
-        # Update today's attendance
+        # Initialize today's data if not exists
         if current_date not in data:
             data[current_date] = {}
         
-        data[current_date][student_name] = time_detected
+        # Initialize student data if not exists
+        if student_name not in data[current_date]:
+            data[current_date][student_name] = {
+                "first_arrival": time_detected,
+                "latest_visit": time_detected
+            }
+        else:
+            # Only update latest visit (keep first arrival unchanged)
+            data[current_date][student_name]["latest_visit"] = time_detected
         
         # Save back
         with open(LOCAL_ATTENDANCE_LOG, 'w') as f:
@@ -91,6 +99,10 @@ def save_local_attendance(student_name, time_detected):
             
     except Exception as e:
         print(f"Error saving local attendance: {e}")
+
+def save_local_attendance(student_name, time_detected):
+    """Legacy function - now calls the tracking version"""
+    save_local_attendance_with_tracking(student_name, time_detected)
 
 def setup_google_sheets():
     """Set up Google Sheets connection and create/initialize the attendance sheet"""
@@ -112,7 +124,7 @@ def setup_google_sheets():
         return None
 
 def initialize_google_sheet(gc):
-    """Initialize the Google Sheet with student names as columns"""
+    """Initialize the Google Sheet with student names and First Arrival/Latest Visit columns"""
     try:
         if gc is None:
             return None
@@ -120,27 +132,41 @@ def initialize_google_sheet(gc):
         # Try to open existing sheet
         try:
             sheet = gc.open(GOOGLE_SHEET_NAME).sheet1
-            print(f"Opened existing Google Sheet: {GOOGLE_SHEET_NAME}")
+            print(f"✅ Opened existing Google Sheet: {GOOGLE_SHEET_NAME}")
         except:
             # Create new sheet if it doesn't exist
             spreadsheet = gc.create(GOOGLE_SHEET_NAME)
             sheet = spreadsheet.sheet1
-            print(f"Created new Google Sheet: {GOOGLE_SHEET_NAME}")
+            print(f"🆕 Created new Google Sheet: {GOOGLE_SHEET_NAME}")
             
-            # Set up headers
+            # Set up headers with First Arrival and Latest Visit for each student
             student_names = ['yaseen', 'naveed', 'hameed', 'vikinesh', 'sajjad', 'sammm', 'linguuu']
-            headers = ['Date'] + student_names
-            sheet.update('A1:H1', [headers])
+            headers = ['Date']
+            
+            # Add columns for each student: First Arrival and Latest Visit
+            for student in student_names:
+                headers.extend([f"{student}_first", f"{student}_latest"])
+            
+            # Update the first row with headers
+            sheet.update('A1', [headers])
+            
+            # Format headers for better readability
+            sheet.format('A1:' + chr(64 + len(headers)) + '1', {
+                "backgroundColor": {"red": 0.2, "green": 0.6, "blue": 0.9},
+                "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}}
+            })
+            
+            print(f"📊 Sheet structure: Date + {len(student_names)} students × 2 columns (First/Latest)")
             
         return sheet
     except Exception as e:
-        print(f"Error initializing Google Sheet: {e}")
+        print(f"❌ Error initializing Google Sheet: {e}")
         return None
 
 def update_google_sheet_attendance(sheet, student_name, time_detected):
-    """Update attendance for a student on the current date in Google Sheets"""
+    """Update attendance for a student with First Arrival and Latest Visit tracking"""
     # Always save locally first
-    save_local_attendance(student_name, time_detected)
+    save_local_attendance_with_tracking(student_name, time_detected)
     
     try:
         if sheet is None:
@@ -150,20 +176,29 @@ def update_google_sheet_attendance(sheet, student_name, time_detected):
             
         # Get all values to find today's row
         all_values = sheet.get_all_values()
-        
-        # Find student column
         headers = all_values[0] if all_values else []
-        if student_name not in headers:
-            print(f"Student {student_name} not found in sheet headers")
+        
+        # Find student columns (first arrival and latest visit)
+        first_col_name = f"{student_name}_first"
+        latest_col_name = f"{student_name}_latest"
+        
+        if first_col_name not in headers or latest_col_name not in headers:
+            print(f"❌ Student columns not found for {student_name}")
             return
             
-        student_col = headers.index(student_name) + 1  # +1 for 1-based indexing
+        first_col = headers.index(first_col_name) + 1  # +1 for 1-based indexing
+        latest_col = headers.index(latest_col_name) + 1
         
         # Find today's row or create it
         today_row = None
+        existing_first_arrival = None
+        
         for i, row in enumerate(all_values):
             if len(row) > 0 and row[0] == current_date:
                 today_row = i + 1  # +1 for 1-based indexing
+                # Check if this student already has a first arrival time
+                if len(row) >= first_col:
+                    existing_first_arrival = row[first_col - 1]  # -1 for 0-based indexing
                 break
                 
         if today_row is None:
@@ -171,9 +206,20 @@ def update_google_sheet_attendance(sheet, student_name, time_detected):
             today_row = len(all_values) + 1
             sheet.update(f'A{today_row}', current_date)
             
-        # Update the student's time
-        sheet.update(f'{chr(64 + student_col)}{today_row}', time_detected)
-        print(f"✅ Google Sheets updated: {student_name} at {time_detected}")
+        # Update First Arrival (only if empty)
+        first_col_letter = chr(64 + first_col)
+        if not existing_first_arrival or existing_first_arrival.strip() == "":
+            sheet.update(f'{first_col_letter}{today_row}', time_detected)
+            print(f"🎯 First Arrival: {student_name} at {time_detected}")
+        else:
+            print(f"⏰ First Arrival already recorded: {student_name} at {existing_first_arrival}")
+            
+        # Always update Latest Visit
+        latest_col_letter = chr(64 + latest_col)
+        sheet.update(f'{latest_col_letter}{today_row}', time_detected)
+        print(f"🔄 Latest Visit: {student_name} at {time_detected}")
+        
+        print(f"✅ Google Sheets updated successfully!")
         
     except Exception as e:
         print(f"Error updating Google Sheets: {e}")

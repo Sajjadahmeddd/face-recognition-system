@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Attendance Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .stat-box {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-width: 150px;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .btn {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .table-container {
+            padding: 30px;
+            overflow-x: auto;
+        }
+        
+        .attendance-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .attendance-table th {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 10px;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 3px solid #45a049;
+        }
+        
+        .student-header {
+            background: #66BB6A;
+            font-size: 1.1em;
+        }
+        
+        .sub-header {
+            background: #81C784;
+            font-size: 0.9em;
+            font-weight: normal;
+        }
+        
+        .attendance-table td {
+            padding: 12px 10px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .attendance-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .attendance-table tr:hover {
+            background: #e8f5e8;
+            transition: all 0.3s;
+        }
+        
+        .date-cell {
+            font-weight: bold;
+            color: #333;
+            background: #fff3cd !important;
+        }
+        
+        .time-cell {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        .first-arrival {
+            color: #28a745;
+        }
+        
+        .latest-visit {
+            color: #007bff;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #666;
+        }
+        
+        .last-updated {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+            border-top: 1px solid #dee2e6;
+            background: #f8f9fa;
+        }
+        
+        @media (max-width: 768px) {
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .table-container {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Face Recognition Attendance</h1>
+            <p>Real-time Employee Attendance Tracking System</p>
+        </div>
+        
+        <div class="stats" id="stats">
+            <div class="stat-box">
+                <div class="stat-number" id="totalDays">-</div>
+                <div class="stat-label">Total Days</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="totalStudents">-</div>
+                <div class="stat-label">Employees</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="todayCount">-</div>
+                <div class="stat-label">Today's Attendance</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div>
+                <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
+                <button class="btn btn-secondary" onclick="toggleAutoRefresh()">⏱️ Auto Refresh: OFF</button>
+            </div>
+            <div>
+                <a href="/api/export" class="btn">📊 Download Excel</a>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <div class="loading" id="loading">Loading attendance data...</div>
+            <table class="attendance-table" id="attendanceTable" style="display: none;">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        
+        <div class="last-updated" id="lastUpdated">Last updated: Loading...</div>
+    </div>
+
+    <script>
+        let autoRefresh = false;
+        let refreshInterval;
+        
+        async function loadAttendanceData() {
+            try {
+                const response = await fetch('/api/attendance');
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('loading').textContent = '❌ ' + data.error;
+                    return;
+                }
+                
+                // Update stats
+                document.getElementById('totalDays').textContent = data.total_days;
+                document.getElementById('totalStudents').textContent = data.students.length;
+                
+                // Calculate today's attendance
+                const today = new Date().toISOString().split('T')[0];
+                const todayData = data.data.find(d => d.date === today);
+                const todayCount = todayData ? 
+                    Object.values(todayData.students).filter(s => s.first_arrival).length : 0;
+                document.getElementById('todayCount').textContent = todayCount;
+                
+                // Create table headers
+                const tableHead = document.getElementById('tableHead');
+                let headerHTML = '<tr><th rowspan="2" class="date-cell">DATE</th>';
+                
+                data.students.forEach(student => {
+                    headerHTML += `<th colspan="2" class="student-header">${student.toUpperCase()}</th>`;
+                });
+                headerHTML += '</tr><tr>';
+                
+                data.students.forEach(student => {
+                    headerHTML += '<th class="sub-header">First Arrival</th>';
+                    headerHTML += '<th class="sub-header">Latest Visit</th>';
+                });
+                headerHTML += '</tr>';
+                
+                tableHead.innerHTML = headerHTML;
+                
+                // Create table body
+                const tableBody = document.getElementById('tableBody');
+                let bodyHTML = '';
+                
+                data.data.forEach(dayData => {
+                    bodyHTML += `<tr><td class="date-cell">${dayData.date}</td>`;
+                    
+                    data.students.forEach(student => {
+                        const studentData = dayData.students[student] || {};
+                        const firstArrival = studentData.first_arrival || '';
+                        const latestVisit = studentData.latest_visit || '';
+                        
+                        bodyHTML += `<td class="time-cell first-arrival">${firstArrival}</td>`;
+                        bodyHTML += `<td class="time-cell latest-visit">${latestVisit}</td>`;
+                    });
+                    
+                    bodyHTML += '</tr>';
+                });
+                
+                tableBody.innerHTML = bodyHTML;
+                
+                // Show table and hide loading
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('attendanceTable').style.display = 'table';
+                
+                // Update last updated time
+                document.getElementById('lastUpdated').textContent = `Last updated: ${data.last_updated}`;
+                
+            } catch (error) {
+                document.getElementById('loading').textContent = '❌ Error loading data: ' + error.message;
+            }
+        }
+        
+        function refreshData() {
+            document.getElementById('loading').textContent = 'Refreshing data...';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('attendanceTable').style.display = 'none';
+            loadAttendanceData();
+        }
+        
+        function toggleAutoRefresh() {
+            const btn = event.target;
+            autoRefresh = !autoRefresh;
+            
+            if (autoRefresh) {
+                btn.textContent = '⏱️ Auto Refresh: ON';
+                btn.style.background = '#28a745';
+                refreshInterval = setInterval(refreshData, 30000); // Refresh every 30 seconds
+            } else {
+                btn.textContent = '⏱️ Auto Refresh: OFF';
+                btn.style.background = '#6c757d';
+                clearInterval(refreshInterval);
+            }
+        }
+        
+        // Load data on page load
+        loadAttendanceData();
+    </script>
+</body>
+</html>

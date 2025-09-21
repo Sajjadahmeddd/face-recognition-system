@@ -1,21 +1,60 @@
 {
   "2025-08-30": {
-    "sajjad": "09:15:30",
-    "yaseen": "09:20:45",
-    "naveed": "10:30:15"
+    "sajjad": {
+      "first_arrival": "09:15:30",
+      "latest_visit": "09:15:30"
+    },
+    "yaseen": {
+      "first_arrival": "09:20:45",
+      "latest_visit": "09:20:45"
+    },
+    "naveed": {
+      "first_arrival": "10:30:15",
+      "latest_visit": "10:30:15"
+    }
   },
   "2025-08-31": {
-    "sajjad": "19:37:51",
-    "hameed": "09:10:30",
-    "vikinesh": "11:15:45"
+    "sajjad": {
+      "first_arrival": "19:37:51",
+      "latest_visit": "19:37:51"
+    },
+    "hameed": {
+      "first_arrival": "09:10:30",
+      "latest_visit": "09:10:30"
+    },
+    "vikinesh": {
+      "first_arrival": "11:15:45",
+      "latest_visit": "11:15:45"
+    }
   },
   "2025-09-01": {
-    "sammm": "11:36:21",
-    "linguuu": "11:35:32",
-    "sajjad": "11:36:21"
+    "sammm": {
+      "first_arrival": "11:36:21",
+      "latest_visit": "11:36:21"
+    },
+    "linguuu": {
+      "first_arrival": "11:35:32",
+      "latest_visit": "11:35:32"
+    },
+    "sajjad": {
+      "first_arrival": "11:36:21",
+      "latest_visit": "11:36:21"
+    }
   },
   "2025-09-20": {
-    "sajjad": "01:23:05",
-    "rizwana": "01:23:03"
+    "sajjad": {
+      "first_arrival": "01:23:05",
+      "latest_visit": "01:23:05"
+    },
+    "rizwana": {
+      "first_arrival": "01:23:03",
+      "latest_visit": "01:23:03"
+    }
+  },
+  "2025-09-21": {
+    "sajjad": {
+      "first_arrival": "14:55:16",
+      "latest_visit": "20:25:28"
+    }
   }
 }
