@@ -105,130 +105,12 @@ def save_local_attendance(student_name, time_detected):
     save_local_attendance_with_tracking(student_name, time_detected)
 
 # Google Sheets functions removed - using local JSON storage only
-
-def initialize_google_sheet(gc):
-    """Initialize the Google Sheet with student names and First Arrival/Latest Visit columns"""
-    try:
-        if gc is None:
-            return None
-            
-        # Try to open existing sheet
-        try:
-            sheet = gc.open(GOOGLE_SHEET_NAME).sheet1
-            print(f"✅ Opened existing Google Sheet: {GOOGLE_SHEET_NAME}")
-        except:
-            # Create new sheet if it doesn't exist
-            spreadsheet = gc.create(GOOGLE_SHEET_NAME)
-            sheet = spreadsheet.sheet1
-            print(f"🆕 Created new Google Sheet: {GOOGLE_SHEET_NAME}")
-            
-            # Set up headers with First Arrival and Latest Visit for each student
-            student_names = ['yaseen', 'naveed', 'hameed', 'vikinesh', 'sajjad', 'sammm', 'linguuu']
-            headers = ['Date']
-            
-            # Add columns for each student: First Arrival and Latest Visit
-            for student in student_names:
-                headers.extend([f"{student}_first", f"{student}_latest"])
-            
-            # Update the first row with headers
-            sheet.update('A1', [headers])
-            
-            # Format headers for better readability
-            sheet.format('A1:' + chr(64 + len(headers)) + '1', {
-                "backgroundColor": {"red": 0.2, "green": 0.6, "blue": 0.9},
-                "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}}
-            })
-            
-            print(f"📊 Sheet structure: Date + {len(student_names)} students × 2 columns (First/Latest)")
-            
-        return sheet
-    except Exception as e:
-        print(f"❌ Error initializing Google Sheet: {e}")
-        return None
-
-def update_google_sheet_attendance(sheet, student_name, time_detected):
     """Update attendance for a student with First Arrival and Latest Visit tracking"""
     # Always save locally first
     save_local_attendance_with_tracking(student_name, time_detected)
-    
-    try:
-        if sheet is None:
-            print(f"📝 Local log: {student_name} detected at {time_detected} (Google Sheets not configured)")
-            print(f"💾 Saved to local file: {LOCAL_ATTENDANCE_LOG}")
-            return
-            
-        # Get all values to find today's row
-        all_values = sheet.get_all_values()
-        headers = all_values[0] if all_values else []
-        
-        # Find student columns (first arrival and latest visit)
-        first_col_name = f"{student_name}_first"
-        latest_col_name = f"{student_name}_latest"
-        
-        if first_col_name not in headers or latest_col_name not in headers:
-            print(f"❌ Student columns not found for {student_name}")
-            return
-            
-        first_col = headers.index(first_col_name) + 1  # +1 for 1-based indexing
-        latest_col = headers.index(latest_col_name) + 1
-        
-        # Find today's row or create it
-        today_row = None
-        existing_first_arrival = None
-        
-        for i, row in enumerate(all_values):
-            if len(row) > 0 and row[0] == current_date:
-                today_row = i + 1  # +1 for 1-based indexing
-                # Check if this student already has a first arrival time
-                if len(row) >= first_col:
-                    existing_first_arrival = row[first_col - 1]  # -1 for 0-based indexing
-                break
-                
-        if today_row is None:
-            # Add new row for today
-            today_row = len(all_values) + 1
-            sheet.update(f'A{today_row}', current_date)
-            
-        # Update First Arrival (only if empty)
-        first_col_letter = chr(64 + first_col)
-        if not existing_first_arrival or existing_first_arrival.strip() == "":
-            sheet.update(f'{first_col_letter}{today_row}', time_detected)
-            print(f"🎯 First Arrival: {student_name} at {time_detected}")
-        else:
-            print(f"⏰ First Arrival already recorded: {student_name} at {existing_first_arrival}")
-            
-        # Always update Latest Visit
-        latest_col_letter = chr(64 + latest_col)
-        sheet.update(f'{latest_col_letter}{today_row}', time_detected)
-        print(f"🔄 Latest Visit: {student_name} at {time_detected}")
-        
-        print(f"✅ Google Sheets updated successfully!")
-        
-    except Exception as e:
-        print(f"Error updating Google Sheets: {e}")
-        print(f"📝 Local log: {student_name} detected at {time_detected}")
+    print(f"✅ Local attendance saved successfully!")
 
-def get_today_google_attendance(sheet, student_name):
-    """Check if student has already been marked present today in Google Sheets"""
-    try:
-        if sheet is None:
-            return None
-            
-        all_values = sheet.get_all_values()
-        headers = all_values[0] if all_values else []
-        
-        if student_name not in headers:
-            return None
-            
-        student_col = headers.index(student_name)
-        
-        for row in all_values:
-            if len(row) > 0 and row[0] == current_date:
-                return row[student_col] if student_col < len(row) else None
-                
-        return None
-    except:
-        return None
+# Google Sheets functions removed - using local JSON storage only
 
 def add_face(name, rrn, branch, image_filename):
     """Add a face to the recognition system - now uses student_images folder"""
@@ -286,10 +168,6 @@ def load_all_student_faces():
     
     print(f"📊 Successfully loaded {loaded_count} faces out of {len(image_files)} images")
 
-# Initialize Google Sheets connection
-gc = setup_google_sheets()
-sheet = initialize_google_sheet(gc)
-
 # Load all student faces automatically
 load_all_student_faces()
 # Initialize webcam
@@ -330,22 +208,24 @@ while True:
                 cv2.rectangle(frame, (int(x_min), int(y_min)), (int(x_max), int(y_max)), (0, 0, 255), 2)
                 cv2.putText(frame, name, (int(x_min), int(y_min) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
 
-                # Update Excel attendance if face is recognized
+                # Update attendance if face is recognized
                 if name != "unknown":
                     # Get current time for this detection
                     current_detection_time = datetime.now().strftime("%H:%M:%S")
                     
-                    # Update Google Sheets attendance (this will overwrite previous time for same day)
-                    update_google_sheet_attendance(sheet, name, current_detection_time)
+                    # Save attendance locally with dual tracking (First Arrival & Latest Visit)
+                    save_local_attendance(name, current_detection_time)
                     
-                    # Add to detected names list if not already added for console display
+                    # Console output for every detection
+                    print(f"{name} detected at {current_detection_time}")
+                    
+                    # Add to detected names list for session tracking
                     if name not in detected_names:
                         detected_names.append(name)
                         person_data = [entry for entry in known_face_encodings if entry[1] == name][0]
                         rrn = person_data[2]
                         branch = person_data[3]
                         attendance_data[name] = {"rrn": rrn, "branch": branch, "time": current_detection_time}
-                        print(f"{name} detected and attendance updated at {current_detection_time}")
 
     # Display the resulting frame
     cv2.imshow("Video", frame)
@@ -357,6 +237,7 @@ while True:
 video_capture.release()
 cv2.destroyAllWindows()
 
-print("Face recognition stopped. Attendance has been saved to Google Sheets.")
-print(f"Check '{GOOGLE_SHEET_NAME}' Google Sheet for attendance records.")
+print("Face recognition stopped. Attendance has been saved locally.")
+print(f"Check '{LOCAL_ATTENDANCE_LOG}' for attendance records.")
+print("Run 'python beautiful_attendance.py' to view attendance or export to Excel.")
 

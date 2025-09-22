@@ -54,7 +54,13 @@
   "2025-09-21": {
     "sajjad": {
       "first_arrival": "14:55:16",
-      "latest_visit": "20:25:28"
+      "latest_visit": "22:54:09"
+    }
+  },
+  "2025-09-22": {
+    "sajjad": {
+      "first_arrival": "20:44:25",
+      "latest_visit": "20:44:37"
     }
   }
 }
