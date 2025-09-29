@@ -5,8 +5,6 @@ import time
 import pandas as pd
 import os
 import json
-import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
 from facenet_pytorch import MTCNN, InceptionResnetV1
 import torch
@@ -15,9 +13,7 @@ import torch
 mtcnn = MTCNN(keep_all=True)
 inception = InceptionResnetV1(pretrained='vggface2').eval()
 
-# Google Sheets configuration
-GOOGLE_SHEET_NAME = "Face Recognition Attendance"
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+# Configuration
 LOCAL_ATTENDANCE_LOG = "local_attendance.json"
 STUDENT_IMAGES_FOLDER = "student_images"  # Folder containing student images
 
@@ -27,7 +23,7 @@ detected_names = []
 attendance_data = {}
 # Set up time and attendance tracking (Modified to show time only as HH:MM:SS)
 current_time1 = time.strftime("%H:%M:%S")  # Only hour, minute, and second
-current_date = datetime.now().strftime("%Y-%m-%d")  # Current date for Google Sheets
+current_date = datetime.now().strftime("%Y-%m-%d")  # Current date
 
 
 # Initialize the list to store face encodings
