@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing Video - CCTV Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .status-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .status-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .status-card h2 {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            border-radius: 15px;
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            box-shadow: inset 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .log-header h3 {
+            color: #333;
+            font-size: 1.5em;
+        }
+
+        .auto-scroll-toggle {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .auto-scroll-toggle:hover {
+            background: #764ba2;
+        }
+
+        .log-entry {
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .log-entry.info {
+            background: #263238;
+            color: #81D4FA;
+            border-left-color: #2196F3;
+        }
+
+        .log-entry.success {
+            background: #1B5E20;
+            color: #A5D6A7;
+            border-left-color: #4CAF50;
+        }
+
+        .log-entry.error {
+            background: #B71C1C;
+            color: #EF9A9A;
+            border-left-color: #F44336;
+        }
+
+        .log-entry.warning {
+            background: #E65100;
+            color: #FFCC80;
+            border-left-color: #FF9800;
+        }
+
+        .log-timestamp {
+            color: #888;
+            font-size: 0.85em;
+            margin-right: 10px;
+        }
+
+        .log-message {
+            display: inline;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 5px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .view-results-btn {
+            display: none;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.2em;
+            cursor: pointer;
+            margin-top: 30px;
+            width: 100%;
+            transition: all 0.3s;
+        }
+
+        .view-results-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .view-results-btn.show {
+            display: block;
+        }
+
+        .progress-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .progress-info h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .progress-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            color: #667eea;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        /* Scrollbar styling */
+        .log-container::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .log-container::-webkit-scrollbar-track {
+            background: #2d2d2d;
+            border-radius: 5px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 5px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Video Analysis in Progress</h1>
+            <p>Processing your CCTV footage...</p>
+        </div>
+
+        <div class="content">
+            <div class="status-card" id="statusCard">
+                <div class="status-icon">⏳</div>
+                <div class="spinner"></div>
+                <h2 id="statusText">Analyzing Video...</h2>
+                <p id="statusSubtext">Please wait while we process your video</p>
+            </div>
+
+            <div class="progress-info">
+                <h4>📊 Processing Statistics</h4>
+                <div class="progress-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">Total Logs</div>
+                        <div class="stat-value" id="logCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Status</div>
+                        <div class="stat-value" id="processingStatus">Running</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Elapsed Time</div>
+                        <div class="stat-value" id="elapsedTime">0s</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="log-header">
+                <h3>📝 Processing Logs</h3>
+                <button class="auto-scroll-toggle" id="autoScrollBtn" onclick="toggleAutoScroll()">
+                    🔽 Auto-scroll: ON
+                </button>
+            </div>
+
+            <div class="log-container" id="logContainer">
+                <div class="log-entry info">
+                    <span class="log-timestamp">{{ analysis_id[:8] }}</span>
+                    <span class="log-message">Connecting to analysis stream...</span>
+                </div>
+            </div>
+
+            <button class="view-results-btn" id="viewResultsBtn" onclick="viewResults()">
+                🎯 View Analysis Results
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const analysisId = "{{ analysis_id }}";
+        let autoScroll = true;
+        let logCount = 0;
+        let startTime = Date.now();
+        let isComplete = false;
+
+        // Connect to SSE stream
+        const eventSource = new EventSource(`/logs/${analysisId}`);
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            // Ignore heartbeats
+            if (data.type === 'heartbeat') {
+                return;
+            }
+
+            // Add log entry
+            addLogEntry(data);
+
+            // Update stats
+            logCount++;
+            document.getElementById('logCount').textContent = logCount;
+
+            // Check if done
+            if (data.type === 'done') {
+                handleCompletion();
+            } else if (data.type === 'error' && data.message.includes('Error:')) {
+                handleError();
+            }
+        };
+
+        eventSource.onerror = function(error) {
+            console.error('SSE Error:', error);
+            // Don't show error if we're already complete
+            if (!isComplete) {
+                addLogEntry({
+                    type: 'warning',
+                    message: 'Connection to server interrupted. Retrying...',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        };
+
+        function addLogEntry(data) {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${data.type}`;
+
+            const timestamp = new Date(data.timestamp).toLocaleTimeString();
+
+            logEntry.innerHTML = `
+                <span class="log-timestamp">${timestamp}</span>
+                <span class="log-message">${data.message}</span>
+            `;
+
+            logContainer.appendChild(logEntry);
+
+            // Auto-scroll if enabled
+            if (autoScroll) {
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+        }
+
+        function handleCompletion() {
+            isComplete = true;
+            eventSource.close();
+
+            const statusCard = document.getElementById('statusCard');
+            statusCard.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+            statusCard.innerHTML = `
+                <div class="status-icon">✅</div>
+                <h2>Analysis Complete!</h2>
+                <p>Your video has been successfully analyzed</p>
+            `;
+
+            document.getElementById('processingStatus').textContent = 'Complete';
+            document.getElementById('viewResultsBtn').classList.add('show');
+        }
+
+        function handleError() {
+            isComplete = true;
+            eventSource.close();
+
+            const statusCard = document.getElementById('statusCard');
+            statusCard.style.background = 'linear-gradient(45deg, #f44336, #e53935)';
+            statusCard.innerHTML = `
+                <div class="status-icon">❌</div>
+                <h2>Analysis Failed</h2>
+                <p>An error occurred during processing. Please check the logs.</p>
+            `;
+
+            document.getElementById('processingStatus').textContent = 'Failed';
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            btn.textContent = autoScroll ? '🔽 Auto-scroll: ON' : '⏸️ Auto-scroll: OFF';
+        }
+
+        function viewResults() {
+            window.location.href = `/view/${analysisId}`;
+        }
+
+        // Update elapsed time
+        setInterval(() => {
+            if (!isComplete) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                document.getElementById('elapsedTime').textContent = `${elapsed}s`;
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

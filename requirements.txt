@@ -1,0 +1,30 @@
+# Face Recognition Attendance System - Requirements
+# Install with: pip install -r requirements.txt
+
+# Computer Vision & Face Recognition
+opencv-python>=4.8.0
+facenet-pytorch>=2.5.3
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Web Dashboard
+Flask>=2.3.0
+Werkzeug>=2.3.0
+
+# Excel Export
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# Terminal Display
+tabulate>=0.9.0
+
+# Additional Dependencies
+Pillow>=10.0.0
+
+# Google Sheets Integration (Service Account - no login required!)
+gspread>=6.1.0
+google-auth>=2.23.0

@@ -1,0 +1,36 @@
+# Credentials and secrets
+credentials/
+*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Runtime directories
+uploads/
+recognition_results/
+
+# Test files
+test_video.mp4
+*.mp4
+*.avi
+*.mov
