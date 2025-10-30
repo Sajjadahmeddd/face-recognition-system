@@ -13,9 +13,10 @@ import torch
 mtcnn = MTCNN(keep_all=True)
 inception = InceptionResnetV1(pretrained='vggface2').eval()
 
-# Configuration
-LOCAL_ATTENDANCE_LOG = "local_attendance.json"
-STUDENT_IMAGES_FOLDER = "student_images"  # Folder containing student images
+# Configuration - Use absolute paths relative to script location
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LOCAL_ATTENDANCE_LOG = os.path.join(SCRIPT_DIR, "local_attendance.json")
+STUDENT_IMAGES_FOLDER = os.path.join(SCRIPT_DIR, "student_images")  # Folder containing student images
 
 # Set up time and attendance tracking
 current_time = time.strftime("%Y-%m-%d %H-%M-%S")
@@ -123,6 +124,10 @@ def add_face(name, rrn, branch, image_filename):
 
 def load_all_student_faces():
     """Automatically load all student faces from the student_images folder"""
+    print(f"🔍 Looking for student images at: {STUDENT_IMAGES_FOLDER}")
+    print(f"🔍 Script directory: {SCRIPT_DIR}")
+    print(f"🔍 Does folder exist? {os.path.exists(STUDENT_IMAGES_FOLDER)}")
+    
     if not os.path.exists(STUDENT_IMAGES_FOLDER):
         print(f"❌ Student images folder '{STUDENT_IMAGES_FOLDER}' not found!")
         return
