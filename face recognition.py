@@ -26,6 +26,13 @@ attendance_data = {}
 current_time1 = time.strftime("%H:%M:%S")  # Only hour, minute, and second
 current_date = datetime.now().strftime("%Y-%m-%d")  # Current date
 
+# Frame statistics tracking
+frame_stats = {
+    "people_detected": 0,
+    "attendance_marked": 0,
+    "unknown_people": 0
+}
+
 
 # Initialize the list to store face encodings
 known_face_encodings = []  # Initialize it here to avoid the NameError
@@ -151,10 +158,7 @@ def load_all_student_faces():
         'hameed.jpg': ('hameed', 1145, 'AI&DS'),
         'viki.jpg': ('vikinesh', 1146, 'AI&DS'),
         'sajjad.jpg': ('sajjad', 1134, 'IT'),
-        'samgr.jpg': ('sammm', 1136, 'IT'),
-        'lingesh.jpg': ('linguuu', 1136, 'IT'),
-        'rizwana.jpg': ('rizwana', 1137, 'IT'),
-        'sam_white.jpg': ('sammm', 1138, 'IT')
+        'lingesh.jpg': ('linguuu', 1136, 'IT')
     }
     
     # Load each student's face
@@ -174,7 +178,16 @@ load_all_student_faces()
 # Initialize webcam
 video_capture = cv2.VideoCapture(0)
 
+# Set camera resolution to maximum (1920x1080 or whatever your camera supports)
+video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
+# Create a normal window (will start at default size, user can maximize)
+cv2.namedWindow("Video", cv2.WINDOW_NORMAL)
+cv2.resizeWindow("Video", 640, 480)  # Start with a smaller default size
+
 while True:
+    frame_start_time = time.time()  # For FPS calculation
     ret, frame = video_capture.read()
     if not ret:
         break
@@ -186,7 +199,13 @@ while True:
     boxes, probs = mtcnn.detect(rgb_frame)  # Get bounding boxes and probabilities
     faces = mtcnn(rgb_frame)  # Get the actual face images
 
+    # Reset frame statistics
+    frame_stats["people_detected"] = 0
+    frame_stats["attendance_marked"] = 0
+    frame_stats["unknown_people"] = 0
+
     if boxes is not None:
+        frame_stats["people_detected"] = len(boxes)
         # Process each detected face
         for i, face in enumerate(faces):
             if face is not None:
@@ -201,6 +220,9 @@ while True:
                 # If the distance is small enough, it's a match
                 if distances[min_distance_index] < 0.9:
                     name = known_face_encodings[min_distance_index][1]
+                    frame_stats["attendance_marked"] += 1
+                else:
+                    frame_stats["unknown_people"] += 1
 
                 # Get the bounding box coordinates
                 x_min, y_min, x_max, y_max = boxes[i].tolist()
@@ -227,6 +249,34 @@ while True:
                         rrn = person_data[2]
                         branch = person_data[3]
                         attendance_data[name] = {"rrn": rrn, "branch": branch, "time": current_detection_time}
+
+    # Add semi-transparent overlay for header
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, 0), (frame.shape[1], 100), (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+    
+    # Display header information (top left)
+    cv2.putText(frame, "REAL-TIME OFFICE ATTENDANCE SYSTEM", 
+                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    cv2.putText(frame, f"Time: {datetime.now().strftime('%H:%M:%S')}", 
+                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    cv2.putText(frame, f"Today's Attendance: {len(detected_names)}", 
+                (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    cv2.putText(frame, f"Enrolled Employees: {len(known_face_encodings)}", 
+                (450, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    
+    # Display FPS in top right corner
+    cv2.putText(frame, f"FPS: {int(1/(time.time() - frame_start_time + 0.0001))}", 
+                (frame.shape[1] - 120, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+
+    # Display statistics on the frame (bottom left)
+    y_offset = frame.shape[0] - 100  # Start from bottom
+    cv2.putText(frame, f"People Detected: {frame_stats['people_detected']}", 
+                (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    cv2.putText(frame, f"Attendance Marked: {frame_stats['attendance_marked']}", 
+                (10, y_offset + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    cv2.putText(frame, f"Unknown People: {frame_stats['unknown_people']}", 
+                (10, y_offset + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
     # Display the resulting frame
     cv2.imshow("Video", frame)
