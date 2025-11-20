@@ -123,7 +123,9 @@ def load_all_student_faces():
         'viki.jpg': ('vikinesh', 1146, 'AI&DS'),
         'sajjad.jpg': ('sajjad', 1134, 'IT'),
         'lingesh.jpg': ('linguuu', 1136, 'IT'),
-        'darun.jpg': ('darun', 1137, 'IT')
+        'darun.jpg': ('darun', 1137, 'IT'),
+        'iyaad.jpg': ('iyaad', 1138, 'CSE'),
+        'aravind.jpg': ('aravind', 1139, 'EIT')
     }
     
     loaded_count = 0
