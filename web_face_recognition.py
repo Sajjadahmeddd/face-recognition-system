@@ -1,6 +1,7 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
 import base64
@@ -14,6 +15,15 @@ from PIL import Image
 import io
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize models (same as face recognition.py)
 print("🔄 Loading face recognition models...")
@@ -215,37 +225,39 @@ async def get():
     """Serve the main HTML page"""
     return HTMLResponse(content=open("web_interface.html", encoding="utf-8").read())
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    print("🔌 WebSocket connection established")
-    
+@app.post("/recognize")
+async def recognize_endpoint(request: Request):
+    """HTTP endpoint for face recognition"""
     try:
-        while True:
-            # Receive face crop from client
-            data = await websocket.receive_json()
-            
-            if data.get("type") == "face_crop":
-                face_image = data.get("image")
-                face_id = data.get("id")
-                
-                # Recognize the face
-                recognized_name = recognize_face(face_image)
-                
-                # Send result back to client
-                await websocket.send_json({
-                    "type": "recognition_result",
-                    "id": face_id,
-                    "name": recognized_name
-                })
+        data = await request.json()
+        face_image = data.get("image")
+        face_id = data.get("id")
+        
+        if not face_image:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "No image provided"}
+            )
+        
+        # Recognize the face
+        recognized_name = recognize_face(face_image)
+        
+        # Return result
+        return JSONResponse(content={
+            "id": face_id,
+            "name": recognized_name,
+            "success": True
+        })
     
-    except WebSocketDisconnect:
-        print("🔌 WebSocket connection closed")
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"Recognition error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "success": False}
+        )
 
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting web face recognition server...")
     print("📡 Open http://localhost:8000 in your browser")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=9991)
