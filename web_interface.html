@@ -195,7 +195,6 @@
     </div>
 
     <script>
-        let websocket;
         let video, canvas, ctx;
         let detectionInterval;
         let faceRecognitionMap = new Map(); // Store recognition results
@@ -208,39 +207,26 @@
         let lastFrameTime = Date.now();
         let frameCount = 0;
         let recognizedNames = new Set();
+        let serverReachable = false;
 
-        // WebSocket connection
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            websocket = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
-            websocket.onopen = () => {
-                document.getElementById('status').textContent = '🟢 Connected to server';
-                document.getElementById('status').className = 'status connected';
-            };
-
-            websocket.onclose = () => {
-                document.getElementById('status').textContent = '🔴 Disconnected from server';
-                document.getElementById('status').className = 'status disconnected';
-                setTimeout(connectWebSocket, 3000); // Reconnect after 3 seconds
-            };
-
-            websocket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'recognition_result') {
-                    faceRecognitionMap.set(data.id, data.name);
-                    
-                    // Update stats
-                    if (data.name !== 'Unknown') {
-                        recognizedNames.add(data.name);
-                        stats.recognized = recognizedNames.size;
-                    }
+        // Check server connection
+        async function checkServerConnection() {
+            try {
+                const response = await fetch('/');
+                serverReachable = response.ok;
+                if (serverReachable) {
+                    document.getElementById('status').textContent = '🟢 Connected to server';
+                    document.getElementById('status').className = 'status connected';
+                } else {
+                    document.getElementById('status').textContent = '🔴 Server not responding';
+                    document.getElementById('status').className = 'status disconnected';
                 }
-            };
-
-            websocket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
+            } catch (error) {
+                serverReachable = false;
+                document.getElementById('status').textContent = '🔴 Cannot reach server';
+                document.getElementById('status').className = 'status disconnected';
+            }
+            return serverReachable;
         }
 
         // Initialize face-api.js
@@ -408,13 +394,29 @@
                 // Convert to base64
                 const imageData = tempCanvas.toDataURL('image/jpeg', 0.8);
 
-                // Send to server via WebSocket
-                if (websocket && websocket.readyState === WebSocket.OPEN) {
-                    websocket.send(JSON.stringify({
-                        type: 'face_crop',
+                // Send to server via HTTP POST
+                const response = await fetch('/recognize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
                         image: imageData,
                         id: faceId
-                    }));
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        faceRecognitionMap.set(data.id, data.name);
+                        
+                        // Update stats
+                        if (data.name !== 'Unknown') {
+                            recognizedNames.add(data.name);
+                            stats.recognized = recognizedNames.size;
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Error sending face crop:', error);
@@ -425,8 +427,12 @@
         async function initialize() {
             document.getElementById('status').textContent = 'Initializing...';
             
-            // Connect to WebSocket
-            connectWebSocket();
+            // Check server connection
+            const connected = await checkServerConnection();
+            if (!connected) {
+                document.getElementById('loading').querySelector('p').textContent = 'Cannot connect to server. Please ensure the server is running.';
+                return;
+            }
 
             // Load face detection models
             const modelsLoaded = await initializeFaceAPI();
@@ -448,6 +454,9 @@
 
             // Start face detection
             detectFaces();
+
+            // Periodically check server connection
+            setInterval(checkServerConnection, 5000);
         }
 
         // Start when page loads
