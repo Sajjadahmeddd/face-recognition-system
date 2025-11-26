@@ -448,9 +448,14 @@ async def recognize_frame_endpoint(request: Request):
                     print(f"✅ Attendance saved for {face['name']} at {current_time}")
         
         # Return all faces with their indices and bounding boxes
+        # Convert numpy/inf/nan values to JSON-safe values
+        import math
         return JSONResponse(content={
             "success": True,
-            "faces": [{"index": i, "name": face["name"], "distance": face["distance"], "bbox": face["bbox"]} 
+            "faces": [{"index": i, 
+                      "name": face["name"], 
+                      "distance": face["distance"] if not (math.isnan(face["distance"]) or math.isinf(face["distance"])) else 999.0,
+                      "bbox": face["bbox"]} 
                      for i, face in enumerate(detected_faces)]
         })
     
