@@ -122,5 +122,23 @@
       "first_arrival": "22:26:15",
       "latest_visit": "22:42:54"
     }
+  },
+  "2025-11-26": {
+    "sajjad": {
+      "first_arrival": "14:42:04",
+      "latest_visit": "14:50:48"
+    },
+    "yaseen": {
+      "first_arrival": "14:42:04",
+      "latest_visit": "14:50:53"
+    },
+    "darun": {
+      "first_arrival": "14:43:51",
+      "latest_visit": "14:43:51"
+    },
+    "iyaad": {
+      "first_arrival": "14:50:50",
+      "latest_visit": "14:50:56"
+    }
   }
 }
