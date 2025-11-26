@@ -9,8 +9,7 @@ import json
 import os
 import time
 from datetime import datetime
-from facenet_pytorch import MTCNN, InceptionResnetV1
-import torch
+from insightface.app import FaceAnalysis
 from PIL import Image
 import io
 
@@ -25,10 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize models (same as face recognition.py)
+# Initialize models (SCRFD + ArcFace)
 print("🔄 Loading face recognition models...")
-mtcnn = MTCNN(keep_all=True)
-inception = InceptionResnetV1(pretrained='vggface2').eval()
+face_app = FaceAnalysis(providers=['CPUExecutionProvider'])
+face_app.prepare(ctx_id=0, det_size=(320, 320), det_thresh=0.3)  # Smaller det_size and lower threshold for better detection
 print("✅ Models loaded successfully!")
 
 # Configuration
@@ -52,17 +51,19 @@ class Face:
             img = cv2.imread(self.image)
             if img is None:
                 print(f"Image not found: {self.image}")
-                return False
+                return None
             
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            faces = mtcnn(img)
-            if faces is not None:
-                for face in faces:
-                    face_embedding = inception(face.unsqueeze(0))
-                    return face_embedding.detach().numpy(), self.name, self.rrn, self.branch
+            # InsightFace works with BGR images directly
+            faces = face_app.get(img)
+            if faces and len(faces) > 0:
+                face_embedding = faces[0].embedding
+                return face_embedding, self.name, self.rrn, self.branch
+            print(f"No face detected in: {self.image}")
             return None
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
-            print(f"Error loading image: {e}")
+            print(f"Error loading image {self.image}: {e}")
             return None
 
 def save_local_attendance_with_tracking(student_name, time_detected):
@@ -142,15 +143,22 @@ def load_all_student_faces():
     for filename in image_files:
         if filename in student_data:
             name, rrn, branch = student_data[filename]
-            if add_face(name, rrn, branch, filename):
-                loaded_count += 1
+            try:
+                if add_face(name, rrn, branch, filename):
+                    loaded_count += 1
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                print(f"⚠️ Failed to load {filename}: {e}")
+                continue
     
     print(f"📊 Successfully loaded {loaded_count} faces out of {len(image_files)} images")
 
-def recognize_face(face_image_data):
+def recognize_face(face_image_data, face_id=None):
     """
     Recognize a face from base64 image data
     Returns the name of the recognized person or "Unknown"
+    Uses face tracking to maintain consistency across frames
     """
     try:
         # Decode base64 image
@@ -163,43 +171,109 @@ def recognize_face(face_image_data):
         
         # Convert to RGB if needed
         if len(img_array.shape) == 2:
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2RGB)
+            img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
         elif img_array.shape[2] == 4:
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
+            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2BGR)
+        elif img_array.shape[2] == 3:
+            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
         
-        # Extract face embedding using MTCNN
-        face_tensor = mtcnn(img_array)
-        if face_tensor is None:
+        # Extract ALL faces from the frame using InsightFace
+        faces = face_app.get(img_array)
+        if not faces or len(faces) == 0:
+            # Clean up cache for this face_id since no face detected
+            if face_id is not None and face_id in face_tracking_cache:
+                del face_tracking_cache[face_id]
+            print("⚠️  No face detected in frame")
             return "Unknown"
         
-        # Handle single face detection - mtcnn returns a tensor, get first face
-        if len(face_tensor.shape) == 4 and face_tensor.shape[0] > 0:
-            face_tensor = face_tensor[0]  # Get first detected face
+        threshold = 0.55  # ArcFace threshold (stricter to prevent false positives)
         
-        # Get embedding - add batch dimension if needed
-        if len(face_tensor.shape) == 3:
-            face_tensor = face_tensor.unsqueeze(0)
-        
-        face_embedding = inception(face_tensor)
-        face_encoding = face_embedding.detach().numpy()
-        
-        # Compare with known faces
-        min_distance = float('inf')
-        recognized_name = "Unknown"
-        recognized_rrn = None
-        recognized_branch = None
-        
-        threshold = 0.8  # Similarity threshold (increased for better matching)
-        
-        for known_encoding, name, rrn, branch in known_face_encodings:
-            # Calculate Euclidean distance
-            distance = np.linalg.norm(face_encoding - known_encoding)
+        # Recognize ALL detected faces first to build a complete picture
+        detected_faces = []
+        for idx, face in enumerate(faces):
+            face_encoding = face.embedding
+            bbox = face.bbox
             
-            if distance < min_distance and distance < threshold:
-                min_distance = distance
-                recognized_name = name
-                recognized_rrn = rrn
-                recognized_branch = branch
+            # Validate embedding
+            if face_encoding is None or len(face_encoding) == 0 or np.linalg.norm(face_encoding) == 0:
+                print(f"⚠️  Face {idx}: Invalid embedding (skipping)")
+                continue
+            
+            best_name = "Unknown"
+            best_distance = float('inf')
+            best_rrn = None
+            best_branch = None
+            
+            # Store all distances for debugging
+            all_distances = []
+            
+            # Compare with known faces
+            for known_encoding, name, rrn, branch in known_face_encodings:
+                similarity = np.dot(face_encoding, known_encoding) / (
+                    np.linalg.norm(face_encoding) * np.linalg.norm(known_encoding)
+                )
+                distance = 1 - similarity
+                all_distances.append((name, distance))
+                
+                if distance < best_distance and distance < threshold:
+                    best_distance = distance
+                    best_name = name
+                    best_rrn = rrn
+                    best_branch = branch
+            
+            # Debug: Log the best match for this face
+            if best_name != "Unknown":
+                print(f"✓ Face {idx}: {best_name} (distance: {best_distance:.3f})")
+            else:
+                # Show top 3 closest matches to help diagnose
+                all_distances.sort(key=lambda x: x[1])
+                top_3 = all_distances[:3]
+                top_3_str = ", ".join([f"{name}: {dist:.3f}" for name, dist in top_3])
+                print(f"✗ Face {idx}: Unknown (closest: {top_3_str}, threshold: {threshold})")
+            
+            detected_faces.append({
+                "index": idx,
+                "name": best_name,
+                "distance": best_distance,
+                "rrn": best_rrn,
+                "branch": best_branch,
+                "bbox": bbox,
+                "center_x": (bbox[0] + bbox[2]) / 2
+            })
+        
+        # Sort by horizontal position (left to right)
+        detected_faces.sort(key=lambda x: x["center_x"])
+        
+        # Match face_id to the correct detected face
+        if face_id is not None and isinstance(face_id, int):
+            # Use spatial ordering: face_id 0 = leftmost, 1 = second from left, etc.
+            if face_id < len(detected_faces):
+                matched_face = detected_faces[face_id]
+                recognized_name = matched_face["name"]
+                recognized_rrn = matched_face["rrn"]
+                recognized_branch = matched_face["branch"]
+                min_distance = matched_face["distance"]
+                
+                # Update cache
+                face_tracking_cache[face_id] = {
+                    "name": recognized_name,
+                    "last_seen": datetime.now(),
+                    "bbox": matched_face["bbox"]
+                }
+            else:
+                # face_id out of range - use first detected face
+                matched_face = detected_faces[0]
+                recognized_name = matched_face["name"]
+                recognized_rrn = matched_face["rrn"]
+                recognized_branch = matched_face["branch"]
+                min_distance = matched_face["distance"]
+        else:
+            # No face_id provided, use first detected face
+            matched_face = detected_faces[0]
+            recognized_name = matched_face["name"]
+            recognized_rrn = matched_face["rrn"]
+            recognized_branch = matched_face["branch"]
+            min_distance = matched_face["distance"]
         
         # Save attendance if recognized
         if recognized_name != "Unknown":
@@ -209,7 +283,7 @@ def recognize_face(face_image_data):
             if attendance_key not in attendance_marked_today:
                 save_local_attendance_with_tracking(recognized_name, current_time)
                 attendance_marked_today.add(attendance_key)
-                print(f"🎯 Recognized: {recognized_name} (RRN: {recognized_rrn}, Branch: {recognized_branch})")
+                print(f"✅ {recognized_name} recognized (distance: {min_distance:.3f})")
         
         return recognized_name
         
@@ -217,17 +291,31 @@ def recognize_face(face_image_data):
         print(f"Error in face recognition: {e}")
         return "Unknown"
 
+# Cache for face tracking across frames (helps with consistency)
+face_tracking_cache = {}  # {face_id: {"name": str, "last_seen": timestamp, "bbox": [x,y,w,h]}}
+from datetime import datetime, timedelta
+
 # Load all student faces on startup
 load_all_student_faces()
 
 @app.get("/")
 async def get():
-    """Serve the main HTML page"""
-    return HTMLResponse(content=open("web_interface.html", encoding="utf-8").read())
+    """Serve the main HTML page with no-cache headers"""
+    from fastapi.responses import Response
+    content = open("web_interface.html", encoding="utf-8").read()
+    return Response(
+        content=content,
+        media_type="text/html",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 @app.post("/recognize")
 async def recognize_endpoint(request: Request):
-    """HTTP endpoint for face recognition"""
+    """HTTP endpoint for face recognition (single face crop)"""
     try:
         data = await request.json()
         face_image = data.get("image")
@@ -239,14 +327,131 @@ async def recognize_endpoint(request: Request):
                 content={"error": "No image provided"}
             )
         
-        # Recognize the face
-        recognized_name = recognize_face(face_image)
+        # Recognize the face with face_id for multi-face scenarios
+        recognized_name = recognize_face(face_image, face_id)
         
         # Return result
         return JSONResponse(content={
             "id": face_id,
             "name": recognized_name,
             "success": True
+        })
+    
+    except Exception as e:
+        print(f"Error in recognize endpoint: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/recognize_frame")
+async def recognize_frame_endpoint(request: Request):
+    """HTTP endpoint for recognizing all faces in a full frame"""
+    try:
+        data = await request.json()
+        frame_image = data.get("image")
+        num_faces = data.get("num_faces", 0)
+        
+        if not frame_image:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "No image provided"}
+            )
+        
+        # Decode base64 image (optimized)
+        if ',' in frame_image:
+            frame_image = frame_image.split(',')[1]
+        
+        img_bytes = base64.b64decode(frame_image)
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        img_array = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # Direct BGR decode
+        
+        if img_array is None:
+            # Fallback to PIL if cv2 decode fails
+            img = Image.open(io.BytesIO(img_bytes))
+            img_array = np.array(img)
+            if len(img_array.shape) == 2:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
+            elif img_array.shape[2] == 4:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2BGR)
+            elif img_array.shape[2] == 3:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        
+        # Detect all faces
+        faces = face_app.get(img_array)
+        
+        if not faces or len(faces) == 0:
+            return JSONResponse(content={
+                "success": True,
+                "faces": []
+            })
+        
+        threshold = 0.55
+        detected_faces = []
+        
+        # Process each face
+        for idx, face in enumerate(faces):
+            face_encoding = face.embedding
+            bbox = face.bbox
+            
+            # Validate embedding
+            if face_encoding is None or len(face_encoding) == 0 or np.linalg.norm(face_encoding) == 0:
+                continue
+            
+            best_name = "Unknown"
+            best_distance = float('inf')
+            best_rrn = None
+            best_branch = None
+            all_distances = []
+            
+            # Compare with known faces
+            for known_encoding, name, rrn, branch in known_face_encodings:
+                similarity = np.dot(face_encoding, known_encoding) / (
+                    np.linalg.norm(face_encoding) * np.linalg.norm(known_encoding)
+                )
+                distance = 1 - similarity
+                all_distances.append((name, distance))
+                
+                if distance < best_distance and distance < threshold:
+                    best_distance = distance
+                    best_name = name
+                    best_rrn = rrn
+                    best_branch = branch
+            
+            # Log recognition
+            if best_name != "Unknown":
+                print(f"✓ Face {idx}: {best_name} (distance: {best_distance:.3f})")
+            else:
+                all_distances.sort(key=lambda x: x[1])
+                top_3 = all_distances[:3]
+                top_3_str = ", ".join([f"{name}: {dist:.3f}" for name, dist in top_3])
+                print(f"✗ Face {idx}: Unknown (closest: {top_3_str}, threshold: {threshold})")
+            
+            detected_faces.append({
+                "index": idx,
+                "name": best_name,
+                "distance": best_distance,
+                "rrn": best_rrn,
+                "branch": best_branch,
+                "bbox": bbox.tolist(),
+                "center_x": (bbox[0] + bbox[2]) / 2
+            })
+        
+        # Sort faces left to right
+        detected_faces.sort(key=lambda x: x["center_x"])
+        
+        # Save attendance for recognized faces
+        current_time = datetime.now().strftime("%H:%M:%S")
+        for face in detected_faces:
+            if face["name"] != "Unknown":
+                attendance_key = f"{face['name']}_{datetime.now().strftime('%Y-%m-%d')}"
+                if attendance_key not in attendance_marked_today:
+                    save_local_attendance_with_tracking(face["name"], current_time)
+                    attendance_marked_today.add(attendance_key)
+                    print(f"✅ Attendance saved for {face['name']} at {current_time}")
+        
+        # Return all faces with their indices and bounding boxes
+        return JSONResponse(content={
+            "success": True,
+            "faces": [{"index": i, "name": face["name"], "distance": face["distance"], "bbox": face["bbox"]} 
+                     for i, face in enumerate(detected_faces)]
         })
     
     except Exception as e:

@@ -229,18 +229,10 @@
             return serverReachable;
         }
 
-        // Initialize face-api.js
+        // Skip face-api.js loading - backend handles all face detection
         async function initializeFaceAPI() {
-            try {
-                console.log('Loading face detection models...');
-                await faceapi.nets.tinyFaceDetector.loadFromUri('https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights');
-                console.log('Models loaded successfully!');
-                return true;
-            } catch (error) {
-                console.error('Error loading models:', error);
-                alert('Failed to load face detection models. Check console for details.');
-                return false;
-            }
+            console.log('Skipping frontend face detection - backend handles everything');
+            return true;
         }
 
         // Initialize webcam
@@ -273,7 +265,7 @@
             }
         }
 
-        // Detect and draw faces
+        // Send frames and draw faces based on backend response
         async function detectFaces() {
             if (!video || video.paused || video.ended) {
                 requestAnimationFrame(detectFaces);
@@ -281,11 +273,6 @@
             }
 
             try {
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({
-                    inputSize: 416,
-                    scoreThreshold: 0.3
-                }));
-
                 // Clear canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -299,64 +286,56 @@
                     document.getElementById('fps').textContent = stats.fps;
                 }
 
-                stats.facesDetected = detections.length;
+                // Send frame to backend every 200ms for real-time detection
+                const lastSent = window.lastFrameSent || 0;
+                const isProcessing = window.isProcessingFrame || false;
+                if ((now - lastSent) > 200 && !isProcessing) {
+                    sendFullFrameToServer();
+                    window.lastFrameSent = now;
+                }
+
+                // Draw faces from last server response
+                const faces = window.detectedFaces || [];
+                stats.facesDetected = faces.length;
                 stats.unknown = 0;
                 document.getElementById('faces-count').textContent = stats.facesDetected;
-                
-                if (detections.length > 0) {
-                    console.log(`Detected ${detections.length} face(s)`);
-                }
 
-                // Process each detection
-                for (let i = 0; i < detections.length; i++) {
-                const detection = detections[i];
-                const box = detection.box;
-                
-                // Create stable face ID based on position (rounded to nearest 100px for better tracking)
-                const posX = Math.round(box.x / 100) * 100;
-                const posY = Math.round(box.y / 100) * 100;
-                const faceId = `face_${posX}_${posY}`;
-                
-                console.log(`Face ID: ${faceId}, Current name: ${faceRecognitionMap.get(faceId) || 'new face'}`);
+                for (let i = 0; i < faces.length; i++) {
+                    const face = faces[i];
+                    const name = face.name;
+                    const bbox = face.bbox; // [x1, y1, x2, y2]
+                    
+                    // Calculate box dimensions
+                    const x = bbox[0];
+                    const y = bbox[1];
+                    const width = bbox[2] - bbox[0];
+                    const height = bbox[3] - bbox[1];
 
-                // Get recognition result
-                let name = faceRecognitionMap.get(faceId) || 'Detecting...';
+                    // Draw bounding box
+                    ctx.strokeStyle = name === 'Unknown' ? '#ef4444' : '#10b981';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
 
-                // Draw bounding box
-                ctx.strokeStyle = name === 'Unknown' ? '#ef4444' : (name === 'Detecting...' ? '#f59e0b' : '#10b981');
-                ctx.lineWidth = 3;
-                ctx.strokeRect(box.x, box.y, box.width, box.height);
+                    // Draw label background
+                    ctx.fillStyle = name === 'Unknown' ? '#ef4444' : '#10b981';
+                    const labelText = name;
+                    ctx.font = 'bold 18px Arial';
+                    const textWidth = ctx.measureText(labelText).width;
+                    ctx.fillRect(x, y - 35, textWidth + 20, 35);
 
-                // Draw label background
-                ctx.fillStyle = name === 'Unknown' ? '#ef4444' : (name === 'Detecting...' ? '#f59e0b' : '#10b981');
-                const labelText = name;
-                ctx.font = 'bold 18px Arial';
-                const textWidth = ctx.measureText(labelText).width;
-                ctx.fillRect(box.x, box.y - 35, textWidth + 20, 35);
+                    // Draw label text
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(labelText, x + 10, y - 10);
 
-                // Draw label text
-                ctx.fillStyle = 'white';
-                ctx.fillText(labelText, box.x + 10, box.y - 10);
-
-                // Count unknown faces
-                if (name === 'Unknown') {
-                    stats.unknown++;
-                }
-
-                // Send face crop to server for recognition if not already recognized or unknown
-                const currentName = faceRecognitionMap.get(faceId);
-                if (!currentName || currentName === 'Detecting...' || currentName === 'Unknown') {
-                    // Only send every 10 frames for the same face to reduce server load
-                    const lastSent = window.lastSentTimes || {};
-                    const now = Date.now();
-                    if (!lastSent[faceId] || (now - lastSent[faceId]) > 500) {
-                        sendFaceCropToServer(box, faceId);
-                        lastSent[faceId] = now;
-                        window.lastSentTimes = lastSent;
+                    // Count unknown faces
+                    if (name === 'Unknown') {
+                        stats.unknown++;
+                    } else {
+                        recognizedNames.add(name);
                     }
                 }
-            }
 
+                stats.recognized = recognizedNames.size;
                 document.getElementById('unknown-count').textContent = stats.unknown;
                 document.getElementById('recognized-count').textContent = stats.recognized;
 
@@ -368,58 +347,46 @@
             requestAnimationFrame(detectFaces);
         }
 
-        // Extract and send face crop to server
-        async function sendFaceCropToServer(box, faceId) {
+        // Send full frame to server for recognition
+        async function sendFullFrameToServer() {
+            if (window.isProcessingFrame) return; // Skip if already processing
+            
+            window.isProcessingFrame = true;
             try {
-                // Create temporary canvas for face crop
+                // Create temporary canvas for full frame
                 const tempCanvas = document.createElement('canvas');
-                const padding = 20; // Add padding around face
-                tempCanvas.width = box.width + (padding * 2);
-                tempCanvas.height = box.height + (padding * 2);
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
                 const tempCtx = tempCanvas.getContext('2d');
 
-                // Draw face crop with padding
-                tempCtx.drawImage(
-                    video,
-                    box.x - padding,
-                    box.y - padding,
-                    box.width + (padding * 2),
-                    box.height + (padding * 2),
-                    0,
-                    0,
-                    tempCanvas.width,
-                    tempCanvas.height
-                );
+                // Draw full frame
+                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
 
-                // Convert to base64
-                const imageData = tempCanvas.toDataURL('image/jpeg', 0.8);
+                // Convert to base64 with lower quality for faster transfer
+                const imageData = tempCanvas.toDataURL('image/jpeg', 0.5);
 
-                // Send to server via HTTP POST
-                const response = await fetch('/recognize', {
+                // Send full frame to server via HTTP POST
+                const response = await fetch('/recognize_frame', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        image: imageData,
-                        id: faceId
+                        image: imageData
                     })
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.success) {
-                        faceRecognitionMap.set(data.id, data.name);
-                        
-                        // Update stats
-                        if (data.name !== 'Unknown') {
-                            recognizedNames.add(data.name);
-                            stats.recognized = recognizedNames.size;
-                        }
+                    if (data.success && data.faces) {
+                        // Store faces for drawing in next frame
+                        window.detectedFaces = data.faces;
                     }
                 }
             } catch (error) {
-                console.error('Error sending face crop:', error);
+                console.error('Error sending frame:', error);
+            } finally {
+                window.isProcessingFrame = false; // Allow next request
             }
         }
 
