@@ -296,10 +296,32 @@
 
                 // Draw faces from last server response
                 const faces = window.detectedFaces || [];
+                
+                // Calculate all stats together from current frame data
                 stats.facesDetected = faces.length;
+                stats.recognized = 0;
                 stats.unknown = 0;
+                
+                // Count recognized vs unknown in this frame
+                const currentFrameNames = new Set();
+                for (let i = 0; i < faces.length; i++) {
+                    const face = faces[i];
+                    const name = face.name;
+                    
+                    if (name === 'Unknown') {
+                        stats.unknown++;
+                    } else {
+                        stats.recognized++;
+                        currentFrameNames.add(name);
+                    }
+                }
+                
+                // Update UI with synchronized stats
                 document.getElementById('faces-count').textContent = stats.facesDetected;
+                document.getElementById('recognized-count').textContent = stats.recognized;
+                document.getElementById('unknown-count').textContent = stats.unknown;
 
+                // Now draw all faces with their labels
                 for (let i = 0; i < faces.length; i++) {
                     const face = faces[i];
                     const name = face.name;
@@ -326,18 +348,7 @@
                     // Draw label text
                     ctx.fillStyle = 'white';
                     ctx.fillText(labelText, x + 10, y - 10);
-
-                    // Count unknown faces
-                    if (name === 'Unknown') {
-                        stats.unknown++;
-                    } else {
-                        recognizedNames.add(name);
-                    }
                 }
-
-                stats.recognized = recognizedNames.size;
-                document.getElementById('unknown-count').textContent = stats.unknown;
-                document.getElementById('recognized-count').textContent = stats.recognized;
 
             } catch (error) {
                 console.error('Error in face detection:', error);
