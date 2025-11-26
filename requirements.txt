@@ -1,0 +1,38 @@
+# ===================================
+# Face Recognition System Requirements
+# For SCRFD + ArcFace (InsightFace)
+# ===================================
+
+# Core Face Recognition (InsightFace backend)
+insightface==0.7.3
+onnxruntime>=1.23.0
+
+# CRITICAL: NumPy must be <2.0 for InsightFace compatibility
+numpy<2.0,>=1.24.0
+
+# Computer Vision
+opencv-python>=4.10.0
+
+# Web Framework
+fastapi>=0.122.0
+uvicorn>=0.38.0
+python-multipart>=0.0.20
+
+# Image Processing
+Pillow>=10.0.0
+
+# Web Dashboard (Flask)
+Flask>=3.0.0
+Flask-SocketIO>=5.3.0
+
+# Data Export
+pandas>=2.0.0
+openpyxl>=3.0.0
+
+# Required by InsightFace
+albumentations>=2.0.0
+scikit-learn>=1.0.0
+scikit-image>=0.20.0
+scipy>=1.9.0
+matplotlib>=3.0.0
+tqdm>=4.60.0

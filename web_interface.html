@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Face Recognition System</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            color: #666;
+        }
+
+        .status.connected {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .status.disconnected {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 960px;
+            margin: 0 auto;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        #webcam {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-card h3 {
+            font-size: 1em;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+
+        .stat-card .value {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Face Recognition System</h1>
+        <div id="status" class="status">Initializing...</div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading face detection models...</p>
+        </div>
+
+        <div id="main-content" style="display: none;">
+            <div class="video-container">
+                <video id="webcam" autoplay muted playsinline></video>
+                <canvas id="canvas"></canvas>
+            </div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>👥 Faces Detected</h3>
+                    <div class="value" id="faces-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>✅ Recognized</h3>
+                    <div class="value" id="recognized-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>❓ Unknown</h3>
+                    <div class="value" id="unknown-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>⚡ FPS</h3>
+                    <div class="value" id="fps">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let video, canvas, ctx;
+        let detectionInterval;
+        let faceRecognitionMap = new Map(); // Store recognition results
+        let stats = {
+            facesDetected: 0,
+            recognized: 0,
+            unknown: 0,
+            fps: 0
+        };
+        let lastFrameTime = Date.now();
+        let frameCount = 0;
+        let recognizedNames = new Set();
+        let serverReachable = false;
+
+        // Check server connection
+        async function checkServerConnection() {
+            try {
+                const response = await fetch('/');
+                serverReachable = response.ok;
+                if (serverReachable) {
+                    document.getElementById('status').textContent = '🟢 Connected to server';
+                    document.getElementById('status').className = 'status connected';
+                } else {
+                    document.getElementById('status').textContent = '🔴 Server not responding';
+                    document.getElementById('status').className = 'status disconnected';
+                }
+            } catch (error) {
+                serverReachable = false;
+                document.getElementById('status').textContent = '🔴 Cannot reach server';
+                document.getElementById('status').className = 'status disconnected';
+            }
+            return serverReachable;
+        }
+
+        // Skip face-api.js loading - backend handles all face detection
+        async function initializeFaceAPI() {
+            console.log('Skipping frontend face detection - backend handles everything');
+            return true;
+        }
+
+        // Initialize webcam
+        async function initializeWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30 }
+                    }
+                });
+
+                video = document.getElementById('webcam');
+                video.srcObject = stream;
+
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        canvas = document.getElementById('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        ctx = canvas.getContext('2d');
+                        resolve(true);
+                    };
+                });
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                alert('Could not access webcam. Please check permissions.');
+                return false;
+            }
+        }
+
+        // Send frames and draw faces based on backend response
+        async function detectFaces() {
+            if (!video || video.paused || video.ended) {
+                requestAnimationFrame(detectFaces);
+                return;
+            }
+
+            try {
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Calculate FPS
+                frameCount++;
+                const now = Date.now();
+                if (now - lastFrameTime > 1000) {
+                    stats.fps = frameCount;
+                    frameCount = 0;
+                    lastFrameTime = now;
+                    document.getElementById('fps').textContent = stats.fps;
+                }
+
+                // Send frame to backend every 200ms for real-time detection
+                const lastSent = window.lastFrameSent || 0;
+                const isProcessing = window.isProcessingFrame || false;
+                if ((now - lastSent) > 200 && !isProcessing) {
+                    sendFullFrameToServer();
+                    window.lastFrameSent = now;
+                }
+
+                // Draw faces from last server response
+                const faces = window.detectedFaces || [];
+                
+                // Calculate all stats together from current frame data
+                stats.facesDetected = faces.length;
+                stats.recognized = 0;
+                stats.unknown = 0;
+                
+                // Count recognized vs unknown in this frame
+                const currentFrameNames = new Set();
+                for (let i = 0; i < faces.length; i++) {
+                    const face = faces[i];
+                    const name = face.name;
+                    
+                    if (name === 'Unknown') {
+                        stats.unknown++;
+                    } else {
+                        stats.recognized++;
+                        currentFrameNames.add(name);
+                    }
+                }
+                
+                // Update UI with synchronized stats
+                document.getElementById('faces-count').textContent = stats.facesDetected;
+                document.getElementById('recognized-count').textContent = stats.recognized;
+                document.getElementById('unknown-count').textContent = stats.unknown;
+
+                // Now draw all faces with their labels
+                for (let i = 0; i < faces.length; i++) {
+                    const face = faces[i];
+                    const name = face.name;
+                    const bbox = face.bbox; // [x1, y1, x2, y2]
+                    
+                    // Calculate box dimensions
+                    const x = bbox[0];
+                    const y = bbox[1];
+                    const width = bbox[2] - bbox[0];
+                    const height = bbox[3] - bbox[1];
+
+                    // Draw bounding box
+                    ctx.strokeStyle = name === 'Unknown' ? '#ef4444' : '#10b981';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
+
+                    // Draw label background
+                    ctx.fillStyle = name === 'Unknown' ? '#ef4444' : '#10b981';
+                    const labelText = name;
+                    ctx.font = 'bold 18px Arial';
+                    const textWidth = ctx.measureText(labelText).width;
+                    ctx.fillRect(x, y - 35, textWidth + 20, 35);
+
+                    // Draw label text
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(labelText, x + 10, y - 10);
+                }
+
+            } catch (error) {
+                console.error('Error in face detection:', error);
+            }
+
+            // Continue detection loop
+            requestAnimationFrame(detectFaces);
+        }
+
+        // Send full frame to server for recognition
+        async function sendFullFrameToServer() {
+            if (window.isProcessingFrame) return; // Skip if already processing
+            
+            window.isProcessingFrame = true;
+            try {
+                // Create temporary canvas for full frame
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                // Draw full frame
+                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+                // Convert to base64 with lower quality for faster transfer
+                const imageData = tempCanvas.toDataURL('image/jpeg', 0.5);
+
+                // Send full frame to server via HTTP POST
+                const response = await fetch('/recognize_frame', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: imageData
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.faces) {
+                        // Store faces for drawing in next frame
+                        window.detectedFaces = data.faces;
+                    }
+                }
+            } catch (error) {
+                console.error('Error sending frame:', error);
+            } finally {
+                window.isProcessingFrame = false; // Allow next request
+            }
+        }
+
+        // Initialize everything
+        async function initialize() {
+            document.getElementById('status').textContent = 'Initializing...';
+            
+            // Check server connection
+            const connected = await checkServerConnection();
+            if (!connected) {
+                document.getElementById('loading').querySelector('p').textContent = 'Cannot connect to server. Please ensure the server is running.';
+                return;
+            }
+
+            // Load face detection models
+            const modelsLoaded = await initializeFaceAPI();
+            if (!modelsLoaded) {
+                document.getElementById('status').textContent = '❌ Failed to load models';
+                return;
+            }
+
+            // Initialize webcam
+            const webcamReady = await initializeWebcam();
+            if (!webcamReady) {
+                document.getElementById('status').textContent = '❌ Failed to access webcam';
+                return;
+            }
+
+            // Hide loading, show content
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+
+            // Start face detection
+            detectFaces();
+
+            // Periodically check server connection
+            setInterval(checkServerConnection, 5000);
+        }
+
+        // Start when page loads
+        window.addEventListener('load', initialize);
+    </script>
+</body>
+</html>

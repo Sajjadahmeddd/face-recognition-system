@@ -106,7 +106,39 @@
   "2025-11-20": {
     "sajjad": {
       "first_arrival": "01:27:04",
-      "latest_visit": "01:44:47"
+      "latest_visit": "16:48:00"
+    },
+    "darun": {
+      "first_arrival": "12:46:06",
+      "latest_visit": "15:56:12"
+    },
+    "iyaad": {
+      "first_arrival": "16:48:38",
+      "latest_visit": "16:48:38"
+    }
+  },
+  "2025-11-22": {
+    "iyaad": {
+      "first_arrival": "22:26:15",
+      "latest_visit": "22:42:54"
+    }
+  },
+  "2025-11-26": {
+    "darun": {
+      "first_arrival": "13:52:23",
+      "latest_visit": "17:21:11"
+    },
+    "yaseen": {
+      "first_arrival": "14:03:53",
+      "latest_visit": "17:29:19"
+    },
+    "iyaad": {
+      "first_arrival": "14:05:14",
+      "latest_visit": "18:07:13"
+    },
+    "sajjad": {
+      "first_arrival": "14:28:49",
+      "latest_visit": "18:06:49"
     }
   }
 }

@@ -158,7 +158,8 @@ def load_all_student_faces():
         'hameed.jpg': ('hameed', 1145, 'AI&DS'),
         'viki.jpg': ('vikinesh', 1146, 'AI&DS'),
         'sajjad.jpg': ('sajjad', 1134, 'IT'),
-        'lingesh.jpg': ('linguuu', 1136, 'IT')
+        'lingesh.jpg': ('linguuu', 1136, 'IT'),
+        'darun.jpg': ('darun', 1137, 'IT')
     }
     
     # Load each student's face
