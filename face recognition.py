@@ -154,12 +154,10 @@ def load_all_student_faces():
     # For now, load the known students manually (you can modify this)
     student_data = {
         'yaseen.jpg': ('yaseen', 1170, 'AI&DS'),
-        'naveed.jpg': ('naveed', 1152, 'AI&DS'),
-        'hameed.jpg': ('hameed', 1145, 'AI&DS'),
-        'viki.jpg': ('vikinesh', 1146, 'AI&DS'),
         'sajjad.jpg': ('sajjad', 1134, 'IT'),
-        'lingesh.jpg': ('linguuu', 1136, 'IT'),
-        'darun.jpg': ('darun', 1137, 'IT')
+        'darun.jpg': ('darun', 1137, 'IT'),
+        'iyaad.jpg': ('iyaad', 1138, 'IT'),
+        'aravind.jpg': ('aravind', 1139, 'IT')
     }
     
     # Load each student's face
@@ -219,7 +217,7 @@ while True:
                 name = "unknown"
 
                 # If the distance is small enough, it's a match
-                if distances[min_distance_index] < 0.9:
+                if distances[min_distance_index] < 0.75:
                     name = known_face_encodings[min_distance_index][1]
                     frame_stats["attendance_marked"] += 1
                 else:
