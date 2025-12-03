@@ -138,7 +138,19 @@
     },
     "sajjad": {
       "first_arrival": "14:28:49",
-      "latest_visit": "18:06:49"
+      "latest_visit": "18:24:08"
+    }
+  },
+  "2025-11-27": {
+    "sajjad": {
+      "first_arrival": "19:19:41",
+      "latest_visit": "19:24:03"
+    }
+  },
+  "2025-12-03": {
+    "sajjad": {
+      "first_arrival": "20:14:30",
+      "latest_visit": "20:14:30"
     }
   }
 }

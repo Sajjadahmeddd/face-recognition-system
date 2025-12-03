@@ -469,5 +469,5 @@ async def recognize_frame_endpoint(request: Request):
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting web face recognition server...")
-    print("📡 Open http://localhost:8000 in your browser")
+    print("📡 Open http://localhost:9991 in your browser")
     uvicorn.run(app, host="0.0.0.0", port=9991)
