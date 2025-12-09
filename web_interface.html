@@ -338,16 +338,40 @@
                     ctx.lineWidth = 3;
                     ctx.strokeRect(x, y, width, height);
 
-                    // Draw label background
+                    // Draw label background with ID and branch info
                     ctx.fillStyle = name === 'Unknown' ? '#ef4444' : '#10b981';
                     const labelText = name;
+                    const employeeId = face.id || '';
+                    const branch = face.branch || '';
+                    
                     ctx.font = 'bold 18px Arial';
-                    const textWidth = ctx.measureText(labelText).width;
-                    ctx.fillRect(x, y - 35, textWidth + 20, 35);
+                    const nameWidth = ctx.measureText(labelText).width;
+                    ctx.font = '14px Arial';
+                    const idText = employeeId ? `ID: ${employeeId}` : '';
+                    const branchText = branch || '';
+                    const idWidth = ctx.measureText(idText).width;
+                    const branchWidth = ctx.measureText(branchText).width;
+                    const maxWidth = Math.max(nameWidth, idWidth, branchWidth);
+                    
+                    // Adjust box height based on whether it's unknown or recognized
+                    const boxHeight = name === 'Unknown' ? 35 : 75;
+                    ctx.fillRect(x, y - boxHeight, maxWidth + 20, boxHeight);
 
-                    // Draw label text
+                    // Draw name
                     ctx.fillStyle = 'white';
-                    ctx.fillText(labelText, x + 10, y - 10);
+                    ctx.font = 'bold 18px Arial';
+                    ctx.fillText(labelText, x + 10, y - (boxHeight - 20));
+                    
+                    // Draw ID and branch for recognized faces
+                    if (name !== 'Unknown' && (employeeId || branch)) {
+                        ctx.font = '14px Arial';
+                        if (idText) {
+                            ctx.fillText(idText, x + 10, y - (boxHeight - 42));
+                        }
+                        if (branchText) {
+                            ctx.fillText(branchText, x + 10, y - (boxHeight - 62));
+                        }
+                    }
                 }
 
             } catch (error) {

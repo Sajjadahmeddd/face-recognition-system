@@ -128,15 +128,11 @@ def load_all_student_faces():
     print(f"📷 Found {len(image_files)} image files")
     
     student_data = {
-        'yaseen.jpg': ('yaseen', 1170, 'AI&DS'),
-        'naveed.jpg': ('naveed', 1152, 'AI&DS'),
-        'hameed.jpg': ('hameed', 1145, 'AI&DS'),
-        'viki.jpg': ('vikinesh', 1146, 'AI&DS'),
-        'sajjad.jpg': ('sajjad', 1134, 'IT'),
-        'lingesh.jpg': ('linguuu', 1136, 'IT'),
-        'darun.jpg': ('darun', 1137, 'IT'),
-        'iyaad.jpg': ('iyaad', 1138, 'CSE'),
-        'aravind.jpg': ('aravind', 1139, 'EIT')
+        'yaseen.jpg': ('yaseen', 104, 'INTERN'),
+        'sajjad.jpg': ('sajjad', 105, 'INTERN'),
+        'darun.jpg': ('darun', 106, 'INTERN'),
+        'iyaad.jpg': ('iyaad', 103, 'INTERN'),
+        'aravind.jpg': ('aravind', 102, 'DEVELOPER')
     }
     
     loaded_count = 0
@@ -454,6 +450,8 @@ async def recognize_frame_endpoint(request: Request):
             "success": True,
             "faces": [{"index": i, 
                       "name": face["name"], 
+                      "id": face["rrn"],
+                      "branch": face["branch"],
                       "distance": face["distance"] if not (math.isnan(face["distance"]) or math.isinf(face["distance"])) else 999.0,
                       "bbox": face["bbox"]} 
                      for i, face in enumerate(detected_faces)]
